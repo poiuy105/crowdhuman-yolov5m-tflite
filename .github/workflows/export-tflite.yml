@@ -56,11 +56,11 @@ jobs:
         run: |
           cd yolov5
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-          export TORCH_LOAD_WEIGHTS_ONLY=0
+          # Patch torch.load to use weights_only=False
+          sed -i 's/torch.load(attempt_download(w), map_location=./torch.load(attempt_download(w), map_location="cpu", weights_only=False)  # load/g' models/experimental.py
+          grep -n "torch.load" models/experimental.py
           cat > export_tflite.py << 'EOF'
           import sys
-          import os
-          os.environ['TORCH_LOAD_WEIGHTS_ONLY'] = '0'
           sys.setrecursionlimit(10000)
           from export import run
           run(
