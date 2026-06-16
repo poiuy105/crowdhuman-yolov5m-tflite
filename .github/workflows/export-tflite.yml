@@ -31,7 +31,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install ultralytics onnx onnxruntime
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install onnx onnxruntime onnxsim
 
       - name: Download model from GitHub Release
         run: |
@@ -46,28 +47,51 @@ jobs:
             exit 1
           fi
 
-      - name: Export to TFLite FP16
+      - name: Clone YOLOv5 and export to ONNX
         run: |
-          yolo export \
-            model=crowdhuman_vbody_yolov5m.pt \
-            format=tflite \
-            imgsz=640 \
-            half=True
+          git clone --depth 1 https://github.com/ultralytics/yolov5.git
+          cd yolov5
+          python export.py \
+            --weights ../crowdhuman_vbody_yolov5m.pt \
+            --include onnx \
+            --imgsz 640 \
+            --half
+          cd ..
+          ls -lh *.onnx
 
-      - name: List exported files
+      - name: Convert ONNX to TFLite FP16
         run: |
-          echo "=== Exported files ==="
-          ls -lh crowdhuman_vbody_yolov5m_saved_model/ 2>/dev/null || true
-          ls -lh *.tflite 2>/dev/null || true
-          ls -lh *.pt 2>/dev/null || true
+          pip install tensorflow
+          python -c "
+import tensorflow as tf
+import onnx
+from onnx_tf.backend import prepare
+
+print('Loading ONNX model...')
+onnx_model = onnx.load('crowdhuman_vbody_yolov5m.onnx')
+print('Preparing TF representation...')
+tf_rep = prepare(onnx_model)
+print('Exporting to SavedModel...')
+tf_rep.export_graph('saved_model')
+
+print('Converting to TFLite FP16...')
+converter = tf.lite.TFLiteConverter.from_saved_model('saved_model')
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.target_spec.supported_types = [tf.float16]
+tflite_model = converter.convert()
+
+with open('crowdhuman_vbody_yolov5m_fp16.tflite', 'wb') as f:
+    f.write(tflite_model)
+print('Done! TFLite FP16 model saved.')
+"
+          ls -lh *.tflite
 
       - name: Upload TFLite FP16 model artifact
         uses: actions/upload-artifact@v4
         with:
           name: crowdhuman-yolov5m-fp16-tflite
           path: |
-            crowdhuman_yolov5m_float16.tflite
-            crowdhuman_yolov5m_saved_model/
+            crowdhuman_vbody_yolov5m_fp16.tflite
           retention-days: 30
 
       - name: Create GitHub Release
@@ -107,7 +131,7 @@ jobs:
             interpreter.invoke()
             ```
           files: |
-            crowdhuman_yolov5m_float16.tflite
+            crowdhuman_vbody_yolov5m_fp16.tflite
           draft: false
           prerelease: false
         env:
