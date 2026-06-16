@@ -65,7 +65,7 @@ jobs:
           pip install ml-dtypes==0.2.0
           pip install onnx==1.14.1 --no-deps
           pip install protobuf==3.20.3
-          pip install tensorflow==2.15.0 onnx-tf==1.10.0
+          pip install tensorflow==2.15.0 tensorflow-probability==0.23.0 onnx-tf==1.10.0
 
       - name: Convert ONNX to TFLite FP16
         run: |
