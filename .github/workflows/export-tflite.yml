@@ -56,9 +56,22 @@ jobs:
             --weights ../crowdhuman_vbody_yolov5m.pt \
             --include onnx \
             --imgsz 640 \
-            --opset 12
+            --opset 12 \
+            --simplify
           cd ..
           ls -lh *.onnx
+
+      - name: Downgrade ONNX opset for onnx-tf compatibility
+        run: |
+          python3 << 'PYEOF'
+          import onnx
+          model = onnx.load('crowdhuman_vbody_yolov5m.onnx')
+          # Convert to opset 12
+          from onnx import version_converter
+          model = version_converter.convert_version(model, 12)
+          onnx.save(model, 'crowdhuman_vbody_yolov5m_opset12.onnx')
+          print('Converted to opset 12')
+          PYEOF
 
       - name: Install onnx-tf and TensorFlow
         run: |
@@ -74,7 +87,7 @@ jobs:
           from onnx_tf.backend import prepare
 
           print('Loading ONNX model...')
-          onnx_model = onnx.load('crowdhuman_vbody_yolov5m.onnx')
+          onnx_model = onnx.load('crowdhuman_vbody_yolov5m_opset12.onnx')
           print('Preparing TF representation...')
           tf_rep = prepare(onnx_model)
           print('Exporting to SavedModel...')
