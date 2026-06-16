@@ -32,7 +32,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install ultralytics pandas pyyaml tqdm matplotlib seaborn scipy
+          pip install ultralytics pandas pyyaml tqdm matplotlib seaborn scipy ipython
           pip install opencv-python-headless pillow
 
       - name: Download model from GitHub Release
