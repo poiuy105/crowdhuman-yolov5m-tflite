@@ -32,7 +32,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install ultralytics onnx==1.14.1 onnxruntime onnxsim pandas pyyaml tqdm matplotlib seaborn scipy
+          pip install ultralytics pandas pyyaml tqdm matplotlib seaborn scipy
           pip install opencv-python-headless pillow
 
       - name: Download model from GitHub Release
@@ -48,96 +48,58 @@ jobs:
             exit 1
           fi
 
-      - name: Clone YOLOv5 and export to ONNX
+      - name: Clone YOLOv5 and export to TFLite
         run: |
           git clone --depth 1 https://github.com/ultralytics/yolov5.git
           cd yolov5
+          # YOLOv5 export.py supports direct TFLite export
           python export.py \
             --weights ../crowdhuman_vbody_yolov5m.pt \
-            --include onnx \
-            --imgsz 640 \
-            --opset 12 \
-            --simplify
+            --include tflite \
+            --imgsz 640
           cd ..
-          ls -lh *.onnx
+          ls -lh yolov5/runs/train/*/weights/*.tflite 2>/dev/null || true
+          ls -lh *.tflite 2>/dev/null || true
+          find . -name "*.tflite" -type f
 
-      - name: Downgrade ONNX opset for onnx-tf compatibility
+      - name: Copy TFLite model
         run: |
-          python3 << 'PYEOF'
-          import onnx
-          model = onnx.load('crowdhuman_vbody_yolov5m.onnx')
-          # Convert to opset 12
-          from onnx import version_converter
-          model = version_converter.convert_version(model, 12)
-          onnx.save(model, 'crowdhuman_vbody_yolov5m_opset12.onnx')
-          print('Converted to opset 12')
-          PYEOF
+          find . -name "*.tflite" -type f -exec cp {} crowdhuman_vbody_yolov5m.tflite \;
+          ls -lh crowdhuman_vbody_yolov5m.tflite
 
-      - name: Install onnx-tf and TensorFlow
-        run: |
-          pip install ml-dtypes==0.4.0
-          pip install onnx==1.16.0
-          pip install tensorflow==2.15.0 tensorflow-probability==0.23.0 onnx-tf==1.10.0
-
-      - name: Convert ONNX to TFLite FP16
-        run: |
-          python3 << 'PYEOF'
-          import tensorflow as tf
-          import onnx
-          from onnx_tf.backend import prepare
-
-          print('Loading ONNX model...')
-          onnx_model = onnx.load('crowdhuman_vbody_yolov5m_opset12.onnx')
-          print('Preparing TF representation...')
-          tf_rep = prepare(onnx_model)
-          print('Exporting to SavedModel...')
-          tf_rep.export_graph('saved_model')
-
-          print('Converting to TFLite FP16...')
-          converter = tf.lite.TFLiteConverter.from_saved_model('saved_model')
-          converter.optimizations = [tf.lite.Optimize.DEFAULT]
-          converter.target_spec.supported_types = [tf.float16]
-          tflite_model = converter.convert()
-
-          with open('crowdhuman_vbody_yolov5m_fp16.tflite', 'wb') as f:
-              f.write(tflite_model)
-          print('Done! TFLite FP16 model saved.')
-          PYEOF
-          ls -lh *.tflite
-
-      - name: Upload TFLite FP16 model artifact
+      - name: Upload TFLite model artifact
         uses: actions/upload-artifact@v4
         with:
-          name: crowdhuman-yolov5m-fp16-tflite
-          path: crowdhuman_vbody_yolov5m_fp16.tflite
+          name: crowdhuman-yolov5m-tflite
+          path: crowdhuman_vbody_yolov5m.tflite
           retention-days: 30
 
       - name: Create GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-fp16
-          name: "CrowdHuman YOLOv5m TFLite FP16 v1.0.0"
+          tag_name: v1.0.0-tflite
+          name: "CrowdHuman YOLOv5m TFLite v1.0.0"
           body: |
-            ## CrowdHuman YOLOv5m - TFLite FP16
+            ## CrowdHuman YOLOv5m - TFLite
 
             ### Model Info
             - **Base model**: YOLOv5m trained on CrowdHuman dataset
             - **Source**: [mikel-brostrom/Yolov5_DeepSort_Pytorch](https://github.com/mikel-brostrom/Yolov5_DeepSort_Pytorch)
-            - **Export format**: TFLite FP16 (half precision)
+            - **Export format**: TFLite (INT8 quantized by default from YOLOv5 export)
             - **Input size**: 640x640
             - **Classes**: person (class 0)
             - **Use case**: Person detection in crowded scenes (back view, side view, partial occlusion)
 
             ### Files
-            - `crowdhuman_vbody_yolov5m_fp16.tflite` - TFLite FP16 model for mobile/edge deployment
+            - `crowdhuman_vbody_yolov5m.tflite` - TFLite model for mobile/edge deployment
 
             ### Usage
             ```python
             import numpy as np
             from tflite_runtime.interpreter import Interpreter
 
-            interpreter = Interpreter('crowdhuman_vbody_yolov5m_fp16.tflite')
+            interpreter = Interpreter('crowdhuman_vbody_yolov5m.tflite')
             interpreter.allocate_tensors()
 
             input_details = interpreter.get_input_details()
@@ -148,7 +110,7 @@ jobs:
             interpreter.set_tensor(input_details[0]['index'], input_data)
             interpreter.invoke()
             ```
-          files: crowdhuman_vbody_yolov5m_fp16.tflite
+          files: crowdhuman_vbody_yolov5m.tflite
           draft: false
           prerelease: false
         env:
