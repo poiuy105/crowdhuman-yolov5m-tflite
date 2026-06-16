@@ -1,4 +1,6 @@
-*.pt
+# Allow model files in models/ directory
+!models/*.pt
+
 *.onnx
 __pycache__/
 *.pyc
