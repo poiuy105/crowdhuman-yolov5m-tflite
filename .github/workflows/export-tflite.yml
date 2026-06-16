@@ -50,13 +50,22 @@ jobs:
 
       - name: Clone YOLOv5 and export to TFLite
         run: |
-          git clone --depth 1 https://github.com/ultralytics/yolov5.git
+          git clone --depth 1 --branch v7.0 https://github.com/ultralytics/yolov5.git
           cd yolov5
-          # YOLOv5 export.py supports direct TFLite export
-          python export.py \
-            --weights ../crowdhuman_vbody_yolov5m.pt \
-            --include tflite \
-            --imgsz 640
+          # Increase recursion limit to avoid maximum recursion depth exceeded
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+          python -c "
+import sys
+sys.setrecursionlimit(10000)
+from export import run
+run(
+    weights='../crowdhuman_vbody_yolov5m.pt',
+    include=['tflite'],
+    imgsz=[640],
+    half=False,
+    int8=False,
+)
+"
           cd ..
           ls -lh yolov5/runs/train/*/weights/*.tflite 2>/dev/null || true
           ls -lh *.tflite 2>/dev/null || true
