@@ -61,7 +61,8 @@ jobs:
 
       - name: Install onnx-tf and TensorFlow
         run: |
-          pip install onnx==1.15.0
+          pip install ml-dtypes==0.4.0
+          pip install onnx==1.16.0
           pip install tensorflow==2.15.0 tensorflow-probability==0.23.0 onnx-tf==1.10.0
 
       - name: Convert ONNX to TFLite FP16
