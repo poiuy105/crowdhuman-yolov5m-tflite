@@ -59,41 +59,24 @@ jobs:
           cd ..
           ls -lh *.onnx
 
-      - name: Install TensorFlow and onnx-tf
+      - name: Install onnx2tf and TensorFlow
         run: |
-          pip install tensorflow onnx-tf
+          pip install onnx2tf tensorflow
 
-      - name: Convert ONNX to TFLite FP16
+      - name: Convert ONNX to TFLite FP16 with onnx2tf
         run: |
-          python3 << 'PYEOF'
-          import tensorflow as tf
-          import onnx
-          from onnx_tf.backend import prepare
-
-          print('Loading ONNX model...')
-          onnx_model = onnx.load('crowdhuman_vbody_yolov5m.onnx')
-          print('Preparing TF representation...')
-          tf_rep = prepare(onnx_model)
-          print('Exporting to SavedModel...')
-          tf_rep.export_graph('saved_model')
-
-          print('Converting to TFLite FP16...')
-          converter = tf.lite.TFLiteConverter.from_saved_model('saved_model')
-          converter.optimizations = [tf.lite.Optimize.DEFAULT]
-          converter.target_spec.supported_types = [tf.float16]
-          tflite_model = converter.convert()
-
-          with open('crowdhuman_vbody_yolov5m_fp16.tflite', 'wb') as f:
-              f.write(tflite_model)
-          print('Done! TFLite FP16 model saved.')
-          PYEOF
-          ls -lh *.tflite
+          onnx2tf \
+            -i crowdhuman_vbody_yolov5m.onnx \
+            -o crowdhuman_vbody_yolov5m_tflite \
+            -osd \
+            -cotof
+          ls -lh crowdhuman_vbody_yolov5m_tflite/
 
       - name: Upload TFLite FP16 model artifact
         uses: actions/upload-artifact@v4
         with:
           name: crowdhuman-yolov5m-fp16-tflite
-          path: crowdhuman_vbody_yolov5m_fp16.tflite
+          path: crowdhuman_vbody_yolov5m_tflite/
           retention-days: 30
 
       - name: Create GitHub Release
@@ -114,14 +97,14 @@ jobs:
             - **Use case**: Person detection in crowded scenes (back view, side view, partial occlusion)
 
             ### Files
-            - `crowdhuman_vbody_yolov5m_fp16.tflite` - TFLite FP16 model for mobile/edge deployment
+            - `crowdhuman_vbody_yolov5m_float16.tflite` - TFLite FP16 model for mobile/edge deployment
 
             ### Usage
             ```python
             import numpy as np
             from tflite_runtime.interpreter import Interpreter
 
-            interpreter = Interpreter('crowdhuman_vbody_yolov5m_fp16.tflite')
+            interpreter = Interpreter('crowdhuman_vbody_yolov5m_float16.tflite')
             interpreter.allocate_tensors()
 
             input_details = interpreter.get_input_details()
@@ -132,7 +115,7 @@ jobs:
             interpreter.set_tensor(input_details[0]['index'], input_data)
             interpreter.invoke()
             ```
-          files: crowdhuman_vbody_yolov5m_fp16.tflite
+          files: crowdhuman_vbody_yolov5m_tflite/*.tflite
           draft: false
           prerelease: false
         env:
