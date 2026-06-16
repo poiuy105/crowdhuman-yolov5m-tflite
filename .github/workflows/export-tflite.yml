@@ -33,15 +33,23 @@ jobs:
           pip install --upgrade pip
           pip install ultralytics onnx onnxruntime
 
-      - name: Copy model from repository
+      - name: Download model from GitHub Release
         run: |
-          cp models/crowdhuman_vbody_yolov5m.pt crowdhuman_yolov5m.pt
-          ls -lh crowdhuman_yolov5m.pt
+          wget -q --show-progress \
+            -O crowdhuman_vbody_yolov5m.pt \
+            "https://github.com/poiuy105/crowdhuman-yolov5m-tflite/releases/download/v0.0.0-model/crowdhuman_vbody_yolov5m.pt"
+          ls -lh crowdhuman_vbody_yolov5m.pt
+          FILE_SIZE=$(stat -c%s crowdhuman_vbody_yolov5m.pt)
+          echo "File size: $FILE_SIZE bytes"
+          if [ "$FILE_SIZE" -lt 1000000 ]; then
+            echo "ERROR: Downloaded file is too small"
+            exit 1
+          fi
 
       - name: Export to TFLite FP16
         run: |
           yolo export \
-            model=crowdhuman_yolov5m.pt \
+            model=crowdhuman_vbody_yolov5m.pt \
             format=tflite \
             imgsz=640 \
             half=True
@@ -49,9 +57,9 @@ jobs:
       - name: List exported files
         run: |
           echo "=== Exported files ==="
-          ls -lh crowdhuman_yolov5m_saved_model/
-          ls -lh crowdhuman_yolov5m_float16.tflite 2>/dev/null || true
+          ls -lh crowdhuman_vbody_yolov5m_saved_model/ 2>/dev/null || true
           ls -lh *.tflite 2>/dev/null || true
+          ls -lh *.pt 2>/dev/null || true
 
       - name: Upload TFLite FP16 model artifact
         uses: actions/upload-artifact@v4
