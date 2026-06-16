@@ -56,8 +56,11 @@ jobs:
         run: |
           cd yolov5
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+          export TORCH_LOAD_WEIGHTS_ONLY=0
           cat > export_tflite.py << 'EOF'
           import sys
+          import os
+          os.environ['TORCH_LOAD_WEIGHTS_ONLY'] = '0'
           sys.setrecursionlimit(10000)
           from export import run
           run(
