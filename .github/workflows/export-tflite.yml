@@ -55,8 +55,7 @@ jobs:
           python export.py \
             --weights ../crowdhuman_vbody_yolov5m.pt \
             --include onnx \
-            --imgsz 640 \
-            --half
+            --imgsz 640
           cd ..
           ls -lh *.onnx
 
